@@ -12,7 +12,7 @@ package linux
 #include <cairo/cairo.h>
 #include <stdlib.h>
 
-extern void processLinuxScreenshotResponse(const char* path, const char* error);
+extern void processLinuxScreenshotResponse(char* path, char* error);
 
 typedef struct ScreenshotData {
     void *webview;
