@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	shlwapi            = windows.NewLazySystemDLL("shlwapi.dll")
-	pSHCreateMemStream = shlwapi.NewProc("SHCreateMemStream")
+	ole32                  = windows.NewLazySystemDLL("ole32.dll")
+	pCreateStreamOnHGlobal = ole32.NewProc("CreateStreamOnHGlobal")
 )
 
 type screenshotResult struct {
@@ -81,11 +81,12 @@ const (
 )
 
 func createMemStream() (uintptr, error) {
-	ret, _, err := pSHCreateMemStream.Call(0, 0)
-	if ret == 0 {
-		return 0, fmt.Errorf("SHCreateMemStream failed: %w", err)
+	var stream uintptr
+	hr, _, _ := pCreateStreamOnHGlobal.Call(0, 1, uintptr(unsafe.Pointer(&stream)))
+	if windows.Handle(hr) != windows.S_OK {
+		return 0, fmt.Errorf("CreateStreamOnHGlobal failed: %08x", hr)
 	}
-	return ret, nil
+	return stream, nil
 }
 
 func releaseStream(stream uintptr) {
@@ -98,7 +99,7 @@ func resetStream(stream uintptr) {
 	vtbl := *(*uintptr)(unsafe.Pointer(stream))
 	seek := *(*uintptr)(unsafe.Pointer(vtbl + istreamVtblSeek*unsafe.Sizeof(uintptr(0))))
 	var newPos int64
-	syscall.SyscallN(seek, stream, 0, 0, 0 /* STREAM_SEEK_SET */, uintptr(unsafe.Pointer(&newPos)))
+	syscall.SyscallN(seek, stream, 0, 0 /* STREAM_SEEK_SET */, uintptr(unsafe.Pointer(&newPos)))
 }
 
 type statstg struct {
