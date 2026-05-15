@@ -75,9 +75,9 @@ func (f *Frontend) TakeScreenshot() ([]byte, error) {
 
 // IStream vtable offsets
 const (
-	istreamVtblRead = 3 // ISequentialStream::Read (QI=0, AddRef=1, Release=2, Read=3)
-	istreamVtblSeek = 5 // IStream::Seek (Write=4, Seek=5)
-	istreamVtblStat = 8 // IStream::Stat (SetSize=6, CopyTo=7, Stat=8)
+	istreamVtblRead = 3  // ISequentialStream::Read (QI=0, AddRef=1, Release=2, Read=3)
+	istreamVtblSeek = 5  // IStream::Seek (Write=4, Seek=5)
+	istreamVtblStat = 12 // IStream::Stat (SetSize=6, CopyTo=7, Commit=8, Revert=9, LockRegion=10, UnlockRegion=11, Stat=12)
 )
 
 func createMemStream() (uintptr, error) {
