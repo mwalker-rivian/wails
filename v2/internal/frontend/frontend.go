@@ -139,4 +139,7 @@ type Frontend interface {
 	// Clipboard
 	ClipboardGetText() (string, error)
 	ClipboardSetText(text string) error
+
+	// Screenshot
+	TakeScreenshot() ([]byte, error)
 }
