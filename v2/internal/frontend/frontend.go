@@ -201,4 +201,7 @@ type Frontend interface {
 	RemoveAllDeliveredNotifications() error
 	RemoveDeliveredNotification(identifier string) error
 	RemoveNotification(identifier string) error
+
+	// Screenshot
+	TakeScreenshot() ([]byte, error)
 }
