@@ -4,6 +4,7 @@ package windows
 
 import (
 	"fmt"
+	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -22,6 +23,7 @@ type screenshotResult struct {
 
 func (f *Frontend) TakeScreenshot() ([]byte, error) {
 	ch := make(chan screenshotResult, 1)
+	var handler *capturePreviewHandler
 
 	f.mainWindow.Invoke(func() {
 		controller := f.chromium.GetController()
@@ -42,7 +44,7 @@ func (f *Frontend) TakeScreenshot() ([]byte, error) {
 			return
 		}
 
-		handler := newCaptureHandler(func(errCode uintptr) {
+		handler = newCaptureHandler(func(errCode uintptr) {
 			defer releaseStream(stream)
 
 			if windows.Handle(errCode) != windows.S_OK {
@@ -67,6 +69,7 @@ func (f *Frontend) TakeScreenshot() ([]byte, error) {
 	})
 
 	result := <-ch
+	runtime.KeepAlive(handler)
 	return result.data, result.err
 }
 
