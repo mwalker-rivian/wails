@@ -21,19 +21,21 @@ type screenshotResult struct {
 }
 
 func (f *Frontend) TakeScreenshot() ([]byte, error) {
-	controller := f.chromium.GetController()
-	if controller == nil {
-		return nil, fmt.Errorf("screenshot: webview controller not available")
-	}
-
-	wv, err := controller.GetCoreWebView2()
-	if err != nil {
-		return nil, fmt.Errorf("screenshot: %w", err)
-	}
-
 	ch := make(chan screenshotResult, 1)
 
 	f.mainWindow.Invoke(func() {
+		controller := f.chromium.GetController()
+		if controller == nil {
+			ch <- screenshotResult{err: fmt.Errorf("screenshot: webview controller not available")}
+			return
+		}
+
+		wv, err := controller.GetCoreWebView2()
+		if err != nil {
+			ch <- screenshotResult{err: fmt.Errorf("screenshot: %w", err)}
+			return
+		}
+
 		stream, err := createMemStream()
 		if err != nil {
 			ch <- screenshotResult{err: fmt.Errorf("screenshot: create stream: %w", err)}
