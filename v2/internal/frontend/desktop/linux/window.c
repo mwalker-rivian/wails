@@ -488,74 +488,61 @@ gboolean close_button_pressed(GtkWidget *widget, GdkEvent *event, void *data)
     return TRUE;
 }
 
-char *droppedFiles = NULL;
+static gboolean onDragMotion(GtkWidget *self, GdkDragContext *context, gint x, gint y, guint time, gpointer data)
+{
+    gdk_drag_status(context, GDK_ACTION_COPY, time);
+    return TRUE;
+}
+
+static gboolean onDragDrop(GtkWidget *self, GdkDragContext *context, gint x, gint y, guint time, gpointer user_data)
+{
+    GdkAtom target = gtk_drag_dest_find_target(self, context, NULL);
+    if (target == GDK_NONE)
+    {
+        gtk_drag_finish(context, FALSE, FALSE, time);
+        return FALSE;
+    }
+    gtk_drag_get_data(self, context, target, time);
+    return TRUE;
+}
 
 static void onDragDataReceived(GtkWidget *self, GdkDragContext *context, gint x, gint y, GtkSelectionData *selection_data, guint target_type, guint time, gpointer data)
 {
-    if(selection_data == NULL || (gtk_selection_data_get_length(selection_data) <= 0) || target_type != 2)
+    if (selection_data == NULL || gtk_selection_data_get_length(selection_data) <= 0)
     {
+        gtk_drag_finish(context, FALSE, FALSE, time);
         return;
     }
 
-    if(droppedFiles != NULL) {
-        free(droppedFiles);
-        droppedFiles = NULL;
-    }
-
-    gchar **filenames = NULL;
-    filenames = g_uri_list_extract_uris((const gchar *)gtk_selection_data_get_data(selection_data));
-    if (filenames == NULL) // If unable to retrieve filenames:
+    gchar **uris = gtk_selection_data_get_uris(selection_data);
+    if (uris == NULL)
     {
-        g_strfreev(filenames);
+        gtk_drag_finish(context, FALSE, FALSE, time);
         return;
     }
 
-    droppedFiles = calloc((size_t)gtk_selection_data_get_length(selection_data), 1);
+    GString *paths = g_string_new(NULL);
+    g_string_printf(paths, "DD:%d:%d:", x, y);
 
-    int iter = 0;
-    while(filenames[iter] != NULL) // The last URI list element is NULL.
+    for (int i = 0; uris[i] != NULL; i++)
     {
-        if(iter != 0)
-        {
-            strncat(droppedFiles, "\n", 1);
-        }
-        char *filename = g_filename_from_uri(filenames[iter], NULL, NULL);
+        char *filename = g_filename_from_uri(uris[i], NULL, NULL);
         if (filename == NULL)
-        {
-            break;
-        }
-        strncat(droppedFiles, filename, strlen(filename));
-
-        free(filename);
-        iter++;
+            continue;
+        if (i > 0)
+            g_string_append_c(paths, '\n');
+        g_string_append(paths, filename);
+        g_free(filename);
     }
+    g_strfreev(uris);
 
-    g_strfreev(filenames);
-}
-
-static gboolean onDragDrop(GtkWidget* self, GdkDragContext* context, gint x, gint y, guint time, gpointer user_data)
-{
-    if(droppedFiles == NULL)
-    {
-        return FALSE;
-    }
-
-    size_t resLen = strlen(droppedFiles)+(sizeof(gint)*2)+6;
-    char *res = calloc(resLen, 1);
-
-    snprintf(res, resLen, "DD:%d:%d:%s", x, y, droppedFiles);
-
-    if(droppedFiles != NULL) {
-        free(droppedFiles);
-        droppedFiles = NULL;
-    }
-
-    processMessage(res);
-    return FALSE;
+    processMessage(paths->str);
+    g_string_free(paths, TRUE);
+    gtk_drag_finish(context, TRUE, FALSE, time);
 }
 
 // WebView
-GtkWidget *SetupWebview(void *contentManager, GtkWindow *window, int hideWindowOnClose, int gpuPolicy, int disableWebViewDragAndDrop, int enableDragAndDrop)
+GtkWidget *SetupWebview(void *contentManager, GtkWindow *window, int hideWindowOnClose, int gpuPolicy, int disableWebViewDragAndDrop, int enableDragAndDrop, GtkWidget *webviewBox)
 {
     GtkWidget *webview = webkit_web_view_new_with_user_content_manager((WebKitUserContentManager *)contentManager);
 
@@ -566,15 +553,18 @@ GtkWidget *SetupWebview(void *contentManager, GtkWindow *window, int hideWindowO
     webkit_web_context_register_uri_scheme(context, "wails", (WebKitURISchemeRequestCallback)processURLRequest, NULL, NULL);
     g_signal_connect(G_OBJECT(webview), "load-changed", G_CALLBACK(webviewLoadChanged), NULL);
 
-    if(disableWebViewDragAndDrop)
+    if(disableWebViewDragAndDrop || enableDragAndDrop)
     {
         gtk_drag_dest_unset(webview);
     }
 
     if(enableDragAndDrop)
     {
-        g_signal_connect(G_OBJECT(webview), "drag-data-received", G_CALLBACK(onDragDataReceived), NULL);
-        g_signal_connect(G_OBJECT(webview), "drag-drop", G_CALLBACK(onDragDrop), NULL);
+        gtk_drag_dest_set(webviewBox, 0, NULL, 0, GDK_ACTION_COPY);
+        gtk_drag_dest_add_uri_targets(webviewBox);
+        g_signal_connect(G_OBJECT(webviewBox), "drag-motion", G_CALLBACK(onDragMotion), NULL);
+        g_signal_connect(G_OBJECT(webviewBox), "drag-drop", G_CALLBACK(onDragDrop), NULL);
+        g_signal_connect(G_OBJECT(webviewBox), "drag-data-received", G_CALLBACK(onDragDataReceived), NULL);
     }
 
     if (hideWindowOnClose)
