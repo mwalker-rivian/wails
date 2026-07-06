@@ -551,6 +551,11 @@ GtkWidget *SetupWebview(void *contentManager, GtkWindow *window, int hideWindowO
     // gtk_container_add(GTK_CONTAINER(window), webview);
     WebKitWebContext *context = webkit_web_context_get_default();
     webkit_web_context_register_uri_scheme(context, "wails", (WebKitURISchemeRequestCallback)processURLRequest, NULL, NULL);
+    // Register the custom scheme as CORS-enabled so pages served from wails://
+    // get a real origin (wails://wails.localhost) instead of an opaque one.
+    // Without this, WebKitGTK sends "Origin: null" on cross-origin fetches
+    // (e.g. to a loopback HTTP backend), which origin-allowlisting servers deny.
+    webkit_security_manager_register_uri_scheme_as_cors_enabled(webkit_web_context_get_security_manager(context), "wails");
     g_signal_connect(G_OBJECT(webview), "load-changed", G_CALLBACK(webviewLoadChanged), NULL);
 
     if(disableWebViewDragAndDrop || enableDragAndDrop)
