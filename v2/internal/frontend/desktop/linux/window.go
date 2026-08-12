@@ -345,8 +345,21 @@ func (w *Window) SetDefaultSize(width int, height int) {
 	C.gtk_window_set_default_size(w.asGTKWindow(), C.int(width), C.int(height))
 }
 
+// SetSize marshals onto the GTK main thread, synchronously, mirroring its
+// inverse Size(). GTK and GDK calls are only valid on the main thread, and this
+// is reachable from any goroutine: runtime.WindowSetSize can be called from an
+// OnDomReady or OnStartup hook, both of which run on Wails' own goroutines.
+// Waiting for completion also keeps SetSize ordered against the operations that
+// dispatch through the separate C queue (Center, Show, Maximise, ...), so a
+// resize immediately followed by a Center cannot centre against the old size.
 func (w *Window) SetSize(width int, height int) {
-	C.gtk_window_resize(w.asGTKWindow(), C.gint(width), C.gint(height))
+	var wg sync.WaitGroup
+	wg.Add(1)
+	invokeOnMainThread(func() {
+		C.gtk_window_resize(w.asGTKWindow(), C.gint(width), C.gint(height))
+		wg.Done()
+	})
+	wg.Wait()
 }
 
 func (w *Window) SetDecorated(frameless bool) {
